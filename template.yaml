@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: School Management API
+
+# --- GLOBALS ---
+Globals:
+  Function:
+    Timeout: 30       # 30 seconds to allow for DB connections
+    MemorySize: 512   # 512MB RAM
+
+Parameters:
+  VpcId:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/school-mgmt/vpc/id'
+  LambdaSubnetIds:
+    Type: 'AWS::SSM::Parameter::Value<CommaDelimitedList>'
+    Default: '/school-mgmt/vpc/lambda-private-subnets'
+  LambdaSecurityGroupId:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/school-mgmt/lambda-sg-id'
+  DatabaseSecurityGroupId:
+    Type: 'AWS::SSM::Parameter::Value<String>'
+    Default: '/school-mgmt/db/mongo-sg-id'
+  Environment:
+    Type: String
+    Default: dev
+
+Resources:
+  SchoolApiFunction:
+    Type: AWS::Serverless::Function
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ./app
+      DockerTag: v1
+    Properties:
+      PackageType: Image
+      ImageUri: placeholder
+      VpcConfig:
+        SecurityGroupIds:
+          - !Ref LambdaSecurityGroupId
+        SubnetIds: !Ref LambdaSubnetIds
+      Environment:
+        Variables:
+          MONGO_URI: mongodb://mongo.local:27017/school_db
+          PORT: 3000
+          JWT_SECRET: your-super-secret-jwt-key-change-in-production-use-ssm-parameter
+      Events:
+        ApiEvent:
+          Type: HttpApi
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+  # LambdaSecurityGroup:
+  #   Type: AWS::EC2::SecurityGroup
+  #   Properties:
+  #     GroupDescription: Allow Lambda to talk to Mongo
+  #     VpcId: !Ref VpcId
+  #     SecurityGroupEgress:
+  #       - IpProtocol: tcp
+  #         FromPort: 27017
+  #         ToPort: 27017
+  #         DestinationSecurityGroupId: !Ref DatabaseSecurityGroupId
